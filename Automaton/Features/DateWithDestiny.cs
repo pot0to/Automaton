@@ -47,8 +47,6 @@ public class DateWithDestinyConfiguration
 
     [BoolConfig] public bool ShowFateTimeRemaining;
     [BoolConfig] public bool ShowFateBonusIndicator;
-
-    [BoolConfig] public bool AbortTasksOnTimeout;
 }
 
 public enum DateWithDestinyState
@@ -222,7 +220,21 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     [CommandHandler("/vfate", "Opens the FATE tracker")]
     private void OnCommand(string command, string arguments) => Utils.GetWindow<FateTrackerUI>()!.IsOpen ^= true;
 
-    private int _successiveInstanceChanges = 0;
+    // Used to ensure only one teleport is happening at a time.
+    // Set to target aetheryte id before calling teleport and set to 0 after reaching destination.
+    // Prevents teleport spamming in the couple milliseconds between sending the teleport command and
+    // beginning of teleport cast, as well as during the couple milliseconds between the cast finishing
+    // and the screen going black.
+    private static readonly object TeleportLock = new();
+
+    // Used to ensure only one mount action is happening at a time. Can be used for: summoning mount,
+    // jumping on mount, jumping to fly, landing, jumping off mount.
+    // Prevents spamming in the milliseconds between actions registering and ConditionFlag changes reflecting.
+    private static readonly object MountingLock = new();
+    private static readonly bool FlyingLock = new();
+
+    private int SuccessiveInstanceChanges = 0;
+
     private readonly int _distanceToTargetAetheryte = 50; // object.IsTargetable has a larger range than actually clickable
 
     private unsafe void OnUpdate(IFramework framework)
@@ -267,7 +279,6 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                 }
                 return;
             case DateWithDestinyState.MovingToFate:
-                _successiveInstanceChanges = 0;
                 unsafe { AgentMap.Instance()->SetFlagMapMarker(Svc.ClientState.TerritoryType, Svc.ClientState.MapId, FateManager.Instance()->GetFateById(nextFate!.FateId)->Location); }
                 if (!Svc.Condition[ConditionFlag.InFlight])
                 {
@@ -380,6 +391,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
     private unsafe void MoveToNextFate(ushort nextFateID)
     {
+
         if (P.Navmesh.IsReady() &&
             !Svc.Condition[ConditionFlag.InCombat] && !Player.Occupied)
         {
@@ -393,7 +405,13 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
             {
                 var aetheryteTravelDistance = Coords.GetDistanceToAetheryte(closestAetheryte, targetPos) + teleportTimePenalty;
                 if (aetheryteTravelDistance < directTravelDistance) // if the closest aetheryte is a shortcut, then teleport
+<<<<<<< HEAD
                     ExecuteTeleport(closestAetheryte);
+=======
+                {
+                    ExecuteTeleport(closestAetheryte);
+                }
+>>>>>>> 5f8bbb2 (cleaning up change instances function and using tasks for teleport and mount)
                 else // if the closest aetheryte is too far away, just fly directly to the fate
                 {
                     if (P.Navmesh.IsReady() && !P.Navmesh.IsRunning() && !P.Navmesh.PathfindInProgress())
@@ -422,6 +440,10 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
     private unsafe void ExecuteTeleport(uint closestAetheryteDataId)
     {
+<<<<<<< HEAD
+=======
+        P.TaskManager.AbortOnTimeout = Config.AbortTeleportOnTimeout;
+>>>>>>> 5f8bbb2 (cleaning up change instances function and using tasks for teleport and mount)
         P.TaskManager.Enqueue(() => Telepo.Instance()->Teleport(closestAetheryteDataId, 0));
         P.TaskManager.Enqueue(() => Player.Object.IsCasting);
         P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas]);
@@ -442,7 +464,6 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
         if (P.Navmesh.PathfindInProgress() || P.Navmesh.IsRunning())
             return false;
-
         var closestAetheryteDataId = Coords.GetNearestAetheryte((int)Player.Territory, Player.Position);
         var closestAetheryteGameObject = Svc.Objects
             .Where(x => x is { ObjectKind: ObjectKind.Aetheryte })
