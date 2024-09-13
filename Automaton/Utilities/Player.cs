@@ -22,6 +22,7 @@ public unsafe static class Player
     public static IPlayerCharacter Object => Svc.ClientState.LocalPlayer;
     public static bool Available => Svc.ClientState.LocalPlayer != null;
     public static bool Interactable => Available && Object.IsTargetable;
+    public static bool IsDead => Svc.ClientState.LocalPlayer.IsDead;
     public static bool Occupied => IsOccupied();
     public static ulong CID => Svc.ClientState.LocalContentId;
     public static StatusList Status => Svc.ClientState.LocalPlayer.StatusList;
