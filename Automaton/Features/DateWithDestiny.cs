@@ -250,6 +250,27 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
             return;
         }
 
+<<<<<<< HEAD
+=======
+        if (Player.IsDead && State != DateWithDestinyState.Dead)
+        {
+            State = DateWithDestinyState.Dead;
+            return;
+        }
+
+        // Update target position continually so we don't pingpong
+        if (Svc.Targets.Target != null)
+        {
+            var target = Svc.Targets.Target;
+            TargetPos = target.Position;
+            if ((Config.FullAuto || Config.AutoMoveToMobs) && !IsInMeleeRange(target.HitboxRadius + (Config.StayInMeleeRange ? 0 : 15)))
+            {
+                TargetAndMoveToEnemy(target);
+                return;
+            }
+        }
+
+>>>>>>> 95314ea (fixing dead check)
         var cf = FateManager.Instance()->CurrentFate;
         var nextFate = GetFates().FirstOrDefault();
         var bicolorGemstoneCount = GetItemCount(26807);
