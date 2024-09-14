@@ -264,33 +264,13 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
             return;
         }
 
-        if (Player.IsDead && State != DateWithDestinyState.Dead)
-        {
-            State = DateWithDestinyState.Dead;
-            Svc.Log.Info("State Change: " + State.ToString());
-            return;
-        }
         var cf = FateManager.Instance()->CurrentFate;
         var nextFate = GetFates().FirstOrDefault();
         var bicolorGemstoneCount = GetItemCount(26807);
         switch (State)
         {
             case DateWithDestinyState.Dead:
-                if (Player.IsDead)
-                    ExecuteRevive();
-                else
-                {
-                    if (Svc.ClientState.TerritoryType != ZoneToFarm)
-                    {
-                        ExecuteTeleport(Coords.GetPrimaryAetheryte(ZoneToFarm) ?? 0);
-                    }
-                    else
-                    {
-                        State = DateWithDestinyState.Ready;
-                        Svc.Log.Info("State Change: " + State.ToString());
-                    }
-                }
-                return;
+                throw new NotImplementedException();
             case DateWithDestinyState.Ready:
                 if (cf != null)
                     State = DateWithDestinyState.InCombat;
@@ -298,8 +278,6 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                     State = DateWithDestinyState.ExchangingVouchers;
                 else if (nextFate == null)
                     State = DateWithDestinyState.ChangingInstances;
-                else if (Svc.Condition[ConditionFlag.InFlight])
-                    State = DateWithDestinyState.Dead;
                 else
                     State = DateWithDestinyState.MovingToFate;
                 Svc.Log.Info("State Change: " + State.ToString());
@@ -396,55 +374,65 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
                 Svc.Log.Info("navmesh not running");
 
-                uint oldSharlayanTerritoryId = 962;
-                if (Svc.ClientState.TerritoryType != oldSharlayanTerritoryId)
-                {
-                    ExecuteTeleport(Coords.GetPrimaryAetheryte(oldSharlayanTerritoryId) ?? 0);
-                    return;
-                }
-
-                var nearbyShopTarget = Svc.Objects.FirstOrDefault(x => x.DataId == 1037055); // search nearby object table for target
-                if (nearbyShopTarget == null || Vector3.Distance(Player.Position, nearbyShopTarget.Position) > 5) // if not found or not nearby, move to shop location
-                {
-                    Svc.Log.Info("shop not found nearby");
-                    P.Navmesh.PathfindAndMoveTo(new Vector3(74.17f, 5.15f, -37.44f), false);
-                    return;
-                }
-
-                // if not targeting shopkeeper
-                if (Svc.Targets.Target?.DataId != nearbyShopTarget.DataId)
-                {
-                    Svc.Targets.Target = nearbyShopTarget;
-                }
-
-                Svc.Log.Info("targeting shopkeeper");
-                // interact with shopkeeper
-                if (!Svc.Condition[ConditionFlag.Occupied])
-                    TargetSystem.Instance()->InteractWithObject((CSGameObject*)Svc.Targets.Target.Address);
-
-                // purchase bicolor vouchers
-                if (TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var shopAddon) && IsAddonReady(shopAddon))
-                {
-                    if (bicolorGemstoneCount < 1400) // close the shop after gems are spent
-                        Callback.Fire(shopAddon, true, -1);
-                    else if (TryGetAddonByName<AtkUnitBase>("SelectYesno", out var yesnoAddon) && IsAddonReady(yesnoAddon)) // confirm
-                        Callback.Fire(yesnoAddon, true, 0);
-                    else // purchase the gems
-                        Callback.Fire(shopAddon, false, 0, 5, bicolorGemstoneCount / 100);
-                    return;
-                }
-
                 if (bicolorGemstoneCount < 1400)
                 {
-                    if (Svc.ClientState.TerritoryType == ZoneToFarm)
+                    // close the shop after gems are spent
+                    if (TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var shopAddon) && IsAddonReady(shopAddon))
                     {
-                        State = DateWithDestinyState.Ready;
-                        Svc.Log.Info("State Change: " + State.ToString());
+                        Callback.Fire(shopAddon, true, -1);
                     }
-                    else
-                        ExecuteTeleport(Coords.GetPrimaryAetheryte(ZoneToFarm) ?? 0);
+
+                    if (!Player.Occupied)
+                    {
+                        if (Svc.ClientState.TerritoryType == ZoneToFarm)
+                        {
+                            State = DateWithDestinyState.Ready;
+                            Svc.Log.Info("State Change: " + State.ToString());
+                        }
+                        else
+                            ExecuteTeleport(Coords.GetPrimaryAetheryte(ZoneToFarm) ?? 0);
+                    }
+                    return;
                 }
-                return;
+                else
+                {
+                    uint oldSharlayanTerritoryId = 962;
+                    if (Svc.ClientState.TerritoryType != oldSharlayanTerritoryId)
+                    {
+                        ExecuteTeleport(Coords.GetPrimaryAetheryte(oldSharlayanTerritoryId) ?? 0);
+                        return;
+                    }
+
+                    var nearbyShopTarget = Svc.Objects.FirstOrDefault(x => x.DataId == 1037055); // search nearby object table for target
+                    if (nearbyShopTarget == null || Vector3.Distance(Player.Position, nearbyShopTarget.Position) > 5) // if not found or not nearby, move to shop location
+                    {
+                        Svc.Log.Info("shop not found nearby");
+                        P.Navmesh.PathfindAndMoveTo(new Vector3(74.17f, 5.15f, -37.44f), false);
+                        return;
+                    }
+
+                    // if not targeting shopkeeper
+                    if (Svc.Targets.Target?.DataId != nearbyShopTarget.DataId)
+                    {
+                        Svc.Targets.Target = nearbyShopTarget;
+                    }
+
+                    Svc.Log.Info("targeting shopkeeper");
+                    // interact with shopkeeper
+                    if (!Svc.Condition[ConditionFlag.Occupied])
+                        TargetSystem.Instance()->InteractWithObject((CSGameObject*)Svc.Targets.Target.Address);
+
+                    // purchase bicolor vouchers
+                    if (TryGetAddonByName<AtkUnitBase>("ShopExchangeCurrency", out var shopAddon) && IsAddonReady(shopAddon))
+                    {
+                        if (TryGetAddonByName<AtkUnitBase>("SelectYesno", out var yesnoAddon) && IsAddonReady(yesnoAddon)) // confirm
+                            Callback.Fire(yesnoAddon, true, 0);
+                        else // purchase the gems
+                            Callback.Fire(shopAddon, false, 0, 5, bicolorGemstoneCount / 100);
+                    }
+
+                    return;
+                }
         };
     }
 
@@ -523,18 +511,21 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
     private unsafe void ExecuteRevive()
     {
-        P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.GeneralAction, 8));
-        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas]);
-        P.TaskManager.Enqueue(() => !Svc.Condition[ConditionFlag.BetweenAreas]);
-        P.TaskManager.Enqueue(() => !Player.IsDead);
+        if (TryGetAddonByName<AtkUnitBase>("SelectYesno", out var yesnoAddon) && IsAddonReady(yesnoAddon))
+        {
+            Callback.Fire(yesnoAddon, true, 0);
+        }
+        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas], "BetweenAreas=True");
+        P.TaskManager.Enqueue(() => !Svc.Condition[ConditionFlag.BetweenAreas], "BetweenAreas=False");
+        P.TaskManager.Enqueue(() => !Player.IsDead, "IsDead=False");
     }
 
     private unsafe void ExecuteTeleport(uint closestAetheryteDataId)
     {
-        P.TaskManager.Enqueue(() => Telepo.Instance()->Teleport(closestAetheryteDataId, 0));
-        P.TaskManager.Enqueue(() => Player.Object.IsCasting);
-        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas]);
-        P.TaskManager.Enqueue(() => !Svc.Condition[ConditionFlag.BetweenAreas]);
+        P.TaskManager.Enqueue(() => Telepo.Instance()->Teleport(closestAetheryteDataId, 0), $"Teleport to {closestAetheryteDataId}");
+        P.TaskManager.Enqueue(() => Player.Object.IsCasting, "Casting=True");
+        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas], "BetweenAreas=True");
+        P.TaskManager.Enqueue(() => !Svc.Condition[ConditionFlag.BetweenAreas], "BetweenAreas=False");
     }
 
     private unsafe bool ChangeInstances()
@@ -601,10 +592,10 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     private unsafe void ExecuteActionSafe(ActionType type, uint id) => action.Exec(() => ActionManager.Instance()->UseAction(type, id));
     private void ExecuteMount()
     {
-        P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.GeneralAction, 24)); // flying mount roulette
-        P.TaskManager.Enqueue(() => Player.Object.IsCasting);
-        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.Mounting] || Svc.Condition[ConditionFlag.Mounting71] || Svc.Condition[ConditionFlag.Unknown57]);
-        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.Mounted] || Svc.Condition[ConditionFlag.Mounted2]);
+        P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.GeneralAction, 24), "Flying Mount Roulette"); // flying mount roulette
+        P.TaskManager.Enqueue(() => Player.Object.IsCasting, "Casting=True");
+        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.Mounting] || Svc.Condition[ConditionFlag.Mounting71] || Svc.Condition[ConditionFlag.Unknown57], "Mounting=True");
+        P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.Mounted] || Svc.Condition[ConditionFlag.Mounted2], "Mounted=True");
     }
     private void ExecuteDismount() => ExecuteActionSafe(ActionType.GeneralAction, 23);
     private void ExecuteJump()
