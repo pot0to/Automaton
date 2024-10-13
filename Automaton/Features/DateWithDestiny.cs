@@ -66,7 +66,8 @@ public enum DateWithDestinyState
     InCombat,
     ChangingInstances,
     ExchangingVouchers,
-    Dead
+    Dead,
+    SummonChocobo
 }
 
 [Tweak, Requirement(NavmeshIPC.Name, NavmeshIPC.Repo)]
@@ -81,11 +82,13 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     private Random random = null!;
 
     private DateWithDestinyState State { get; set; }
+    private DateWithDestinyState PreviousState { get; set; }
     private uint ZoneToFarm { get; set; }
 
     public DateWithDestiny()
     {
         State = DateWithDestinyState.Ready;
+        PreviousState = DateWithDestinyState.Ready;
         ZoneToFarm = Svc.ClientState.TerritoryType;
         Config.AbortTasksOnTimeout = true;
     }
@@ -250,6 +253,12 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
     private unsafe void OnUpdate(IFramework framework)
     {
+        if (State != PreviousState)
+        {
+            Svc.Log.Info("State Change: " + State.ToString());
+            PreviousState = State;
+        }
+
         P.TaskManager.AbortOnTimeout = Config.AbortTasksOnTimeout;
 
         if (!Player.Available || P.TaskManager.IsBusy) return;
@@ -257,22 +266,29 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         if (!active)
         {
             if (State != DateWithDestinyState.Ready)
-            {
                 State = DateWithDestinyState.Ready;
-                Svc.Log.Info("State Change: " + State.ToString());
-            }
             return;
         }
 
-        var cf = FateManager.Instance()->CurrentFate;
+        if (Player.IsDead && State != DateWithDestinyState.Dead)
+        {
+            State = DateWithDestinyState.Dead;
+        }
+
+        var currentFate = FateManager.Instance()->CurrentFate;
         var nextFate = GetFates().FirstOrDefault();
         var bicolorGemstoneCount = GetItemCount(26807);
         switch (State)
         {
             case DateWithDestinyState.Dead:
-                throw new NotImplementedException();
+                ExecuteRevive();
+                return;
             case DateWithDestinyState.Ready:
-                if (cf != null)
+                if (Svc.ClientState.TerritoryType != ZoneToFarm)
+                    ExecuteTeleport(Coords.GetPrimaryAetheryte(ZoneToFarm) ?? 0);
+                else if (UIState.Instance()->Buddy.CompanionInfo.TimeLeft == 0)
+                    State = DateWithDestinyState.SummonChocobo;
+                else if (currentFate != null)
                     State = DateWithDestinyState.InCombat;
                 else if (bicolorGemstoneCount > 1400)
                     State = DateWithDestinyState.ExchangingVouchers;
@@ -280,7 +296,9 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                     State = DateWithDestinyState.ChangingInstances;
                 else
                     State = DateWithDestinyState.MovingToFate;
-                Svc.Log.Info("State Change: " + State.ToString());
+                return;
+            case DateWithDestinyState.SummonChocobo:
+                ExecuteSummonChocobo();
                 return;
             case DateWithDestinyState.Mounting:
                 if ((Config.FullAuto || Config.AutoMount) && !Player.Occupied && !(Svc.Condition[ConditionFlag.Mounted] || Svc.Condition[ConditionFlag.Mounted2]))
@@ -288,26 +306,21 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                 else if ((Config.FullAuto || Config.AutoFly) && !Player.Occupied && Svc.Condition[ConditionFlag.Mounted] && !Svc.Condition[ConditionFlag.InFlight])
                     ExecuteJump();
                 else if (Svc.Condition[ConditionFlag.InFlight])
-                {
                     State = DateWithDestinyState.MovingToFate;
-                    Svc.Log.Info("State Change: " + State.ToString());
-                }
                 return;
             case DateWithDestinyState.MovingToFate:
                 unsafe { AgentMap.Instance()->SetFlagMapMarker(Svc.ClientState.TerritoryType, Svc.ClientState.MapId, FateManager.Instance()->GetFateById(nextFate!.FateId)->Location); }
                 if (!Svc.Condition[ConditionFlag.InFlight])
                 {
                     State = DateWithDestinyState.Mounting;
-                    Svc.Log.Info("State Change: " + State.ToString());
                     return;
                 }
 
                 if (!P.Navmesh.PathfindInProgress() && !P.Navmesh.IsRunning())
                 {
-                    if (cf is not null)
+                    if (currentFate is not null)
                     {
                         State = DateWithDestinyState.InCombat;
-                        Svc.Log.Info("State Change: " + State.ToString());
                     }
                     else
                         MoveToNextFate(nextFate!.FateId);
@@ -318,10 +331,9 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                 return;
             case DateWithDestinyState.InCombat:
 
-                if (cf == null && !Svc.Condition[ConditionFlag.InCombat] && !Player.IsCasting)
+                if (currentFate == null && !Svc.Condition[ConditionFlag.InCombat] && !Player.IsCasting)
                 {
                     State = DateWithDestinyState.Ready;
-                    Svc.Log.Info("State Change: " + State.ToString());
                     FateID = 0;
                 }
                 else
@@ -341,9 +353,9 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                         target = GetMobTargetingPlayer();
 
                     // target fate mobs if you're in a fate
-                    if (cf != null)
+                    if (currentFate != null)
                     {
-                        FateID = cf->FateId;
+                        FateID = currentFate->FateId;
                         if (target == null || target.ObjectKind != ObjectKind.BattleNpc)
                             target = GetFateMob();
                     }
@@ -363,10 +375,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
             case DateWithDestinyState.ChangingInstances:
                 Svc.Log.Info("_successiveInstanceChanges: " + SuccessiveInstanceChanges);
                 if (ChangeInstances())
-                {
                     State = DateWithDestinyState.Ready;
-                    Svc.Log.Info("State Change: " + State.ToString());
-                }
                 return;
             case DateWithDestinyState.ExchangingVouchers:
                 if (P.Navmesh.PathfindInProgress() || P.Navmesh.IsRunning())
@@ -509,6 +518,20 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
             P.Navmesh.PathfindAndMoveTo(TargetPos, false);
     }
 
+    private unsafe void ExecuteSummonChocobo()
+    {
+        if (UIState.Instance()->Buddy.CompanionInfo.TimeLeft > 0)
+        {
+            State = DateWithDestinyState.Ready;
+            return;
+        }
+
+        var gysahlGreensCount = GetItemCount(4868);
+        if (gysahlGreensCount > 0)
+        {
+            return;
+        }
+    }
     private unsafe void ExecuteRevive()
     {
         if (TryGetAddonByName<AtkUnitBase>("SelectYesno", out var yesnoAddon) && IsAddonReady(yesnoAddon))
@@ -518,6 +541,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas], "BetweenAreas=True");
         P.TaskManager.Enqueue(() => !Svc.Condition[ConditionFlag.BetweenAreas], "BetweenAreas=False");
         P.TaskManager.Enqueue(() => !Player.IsDead, "IsDead=False");
+        State = DateWithDestinyState.Ready;
     }
 
     private unsafe void ExecuteTeleport(uint closestAetheryteDataId)
