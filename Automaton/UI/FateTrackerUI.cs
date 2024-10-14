@@ -33,15 +33,31 @@ internal class FateTrackerUI : Window
 
     public override unsafe void Draw()
     {
+        if (ImGui.BeginTabBar("###Tabs", ImGuiTabBarFlags.Reorderable))
+        {
+            if (ImGui.BeginTabItem("Fates"))
+            {
+                DrawFateTrackerTab();
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Config"))
+            {
+                _tweak.DrawConfig();
+                ImGui.EndTabItem();
+            }
+        }
+    }
+
+    public unsafe void DrawFateTrackerTab()
+    {
+
         using var table = ImRaii.Table("Fates", 2, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX | ImGuiTableFlags.NoHostExtendX);
         if (!table)
             return;
 
         ImGui.TableNextRow();
         ImGui.TableNextColumn();
-        ImGui.TextUnformatted($"Status: {(_tweak.active ? "on" : "off")} (Yo-Kai: {(_tweak.Config.YokaiMode ? "on" : "off")})");
-        ImGui.TableNextColumn();
-        //ImGui.SetColumnOffset(1, ImGui.GetContentRegionAvail().X - 2 * ImGuiX.IconUnitWidth() - ImGuiHelpers.GetButtonSize("1500").X);
         if (ImGuiComponents.IconButton(!_tweak.active ? FontAwesomeIcon.Play : FontAwesomeIcon.Stop))
         {
             _tweak.active ^= true;
@@ -51,6 +67,9 @@ internal class FateTrackerUI : Window
         ImGui.Image(Svc.Texture.GetFromGameIcon(new Dalamud.Interface.Textures.GameIconLookup(065071)).GetWrapOrEmpty().ImGuiHandle, new Vector2(ImGuiX.IconUnitHeight()));
         ImGui.SameLine();
         ImGui.TextUnformatted(InventoryManager.Instance()->GetInventoryItemCount(26807).ToString());
+        ImGui.TableNextColumn();
+        //ImGui.SetColumnOffset(1, ImGui.GetContentRegionAvail().X - 2 * ImGuiX.IconUnitWidth() - ImGuiHelpers.GetButtonSize("1500").X);
+
 
         //ImGui.SameLine();
         //if (ImGuiComponents.IconButtonWithText((FontAwesomeIcon)0xf002, "Browse"))

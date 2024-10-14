@@ -1,3 +1,4 @@
+using Automaton.Configuration;
 using Automaton.IPC;
 using Automaton.UI;
 using Dalamud.Game.ClientState.Fates;
@@ -24,7 +25,7 @@ using static ECommons.GameFunctions.ObjectFunctions;
 
 namespace Automaton.Features;
 
-public class DateWithDestinyConfiguration
+public class DateWithDestinyConfiguration : TweakConfigs
 {
     public HashSet<uint> blacklist = [];
     public HashSet<uint> whitelist = [];
@@ -55,6 +56,10 @@ public class DateWithDestinyConfiguration
     [BoolConfig] public bool ShowFateBonusIndicator;
 
     [BoolConfig] public bool AbortTasksOnTimeout = true;
+
+    [BoolConfig] public bool ShouldExchangeBicolorGemstoneVouchers = true;
+    public uint BicolorGemstoneVoucherType = 0;
+    public uint BicolorGemstoneVoucherVendor = 0;
 }
 
 public enum DateWithDestinyState
@@ -91,6 +96,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         State = DateWithDestinyState.Ready;
         PreviousState = DateWithDestinyState.Ready;
         ZoneToFarm = Svc.ClientState.TerritoryType;
+        P.TaskManager.AbortOnTimeout = true;
     }
 
     private enum Z
@@ -174,7 +180,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     public override void DrawConfig()
     {
         ImGuiX.DrawSection("Configuration");
-        ImGui.Checkbox("Yo-Kai Mode (Very Experimental)", ref yokaiMode);
+        ImGui.Checkbox("Change Instances (Requires Lifestream)", ref Config.ChangeInstances);
         ImGui.Checkbox("Prioritize targeting Forlorns", ref Config.PrioritizeForlorns);
         ImGui.Checkbox("Prioritize Fates with EXP bonus", ref Config.PrioritizeBonusFates);
         ImGui.Indent();
@@ -212,10 +218,12 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         ImGui.SameLine();
         ImGuiX.ResetButton(ref Config.MaxProgress, 90);
 
+        ImGuiX.DrawSection("Fate Modes");
+        ImGui.Checkbox("Yo-Kai Mode (Very Experimental)", ref yokaiMode);
+
         ImGuiX.DrawSection("Fate Window Options");
         ImGui.Checkbox("Show Time Remaining", ref Config.ShowFateTimeRemaining);
         ImGui.Checkbox("Show Bonus Indicator", ref Config.ShowFateBonusIndicator);
-        ImGui.Checkbox("Change Instances (Requires Lifestream)", ref Config.ChangeInstances);
     }
 
     public override void Enable()
@@ -231,7 +239,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         Svc.Framework.Update -= OnUpdate;
     }
 
-    [CommandHandler("/vfate", "Opens the FATE tracker")]
+    [CommandHandler("/dwd", "Opens the FATE tracker")]
     private void OnCommand(string command, string arguments) => Utils.GetWindow<FateTrackerUI>()!.IsOpen ^= true;
 
     private int _successiveInstanceChanges = 0;
@@ -244,8 +252,6 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
             Svc.Log.Info("State Change: " + State.ToString());
             PreviousState = State;
         }
-
-        P.TaskManager.AbortOnTimeout = Config.AbortTasksOnTimeout;
 
         if (!Player.Available || P.TaskManager.IsBusy) return;
 
@@ -508,7 +514,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         TargetPos = target.Position;
         if ((Config.FullAuto || Config.AutoTarget) && Svc.Targets.Target?.GameObjectId != target.GameObjectId)
             Svc.Targets.Target = target;
-        if ((Config.FullAuto || Config.AutoMoveToMobs) && !P.Navmesh.PathfindInProgress() && !IsInMeleeRange(target.HitboxRadius + (Config.StayInMeleeRange ? 0 : 15)))
+        if ((Config.FullAuto || Config.AutoMoveToMobs) && !P.Navmesh.PathfindInProgress() && !P.Navmesh.IsRunning() && !IsInMeleeRange(target.HitboxRadius + (Config.StayInMeleeRange ? 0 : 15)))
             P.Navmesh.PathfindAndMoveTo(TargetPos, false);
     }
 
@@ -523,6 +529,8 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         var gysahlGreensCount = GetItemCount(4868);
         if (gysahlGreensCount > 0)
         {
+            P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.Item, 4650, 65535), "Using Gyasahl Greens");
+            P.TaskManager.Enqueue(() => UIState.Instance()->Buddy.CompanionInfo.TimeLeft > 0);
             return;
         }
     }
@@ -608,7 +616,8 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         return true;
     }
 
-    private unsafe void ExecuteActionSafe(ActionType type, uint id) => action.Exec(() => ActionManager.Instance()->UseAction(type, id));
+    private unsafe void ExecuteActionSafe(ActionType type, uint id, uint extraParam = 0) => action.Exec(() => ActionManager.Instance()->UseAction(type, id, extraParam));
+
     private void ExecuteMount()
     {
         P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.GeneralAction, 24), "Flying Mount Roulette"); // flying mount roulette
