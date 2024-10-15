@@ -239,21 +239,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     [CommandHandler("/dwd", "Opens the FATE tracker")]
     private void OnCommand(string command, string arguments) => Utils.GetWindow<FateTrackerUI>()!.IsOpen ^= true;
 
-    // Used to ensure only one teleport is happening at a time.
-    // Set to target aetheryte id before calling teleport and set to 0 after reaching destination.
-    // Prevents teleport spamming in the couple milliseconds between sending the teleport command and
-    // beginning of teleport cast, as well as during the couple milliseconds between the cast finishing
-    // and the screen going black.
-    private static readonly object TeleportLock = new();
-
-    // Used to ensure only one mount action is happening at a time. Can be used for: summoning mount,
-    // jumping on mount, jumping to fly, landing, jumping off mount.
-    // Prevents spamming in the milliseconds between actions registering and ConditionFlag changes reflecting.
-    private static readonly object MountingLock = new();
-    private static readonly bool FlyingLock = new();
-
     private int SuccessiveInstanceChanges = 0;
-
     private readonly int _distanceToTargetAetheryte = 50; // object.IsTargetable has a larger range than actually clickable
 
     private unsafe void OnUpdate(IFramework framework)
@@ -312,6 +298,15 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                     State = DateWithDestinyState.MovingToFate;
                 return;
             case DateWithDestinyState.MovingToFate:
+                _successiveInstanceChanges = 0;
+
+                //var nextFateContext = 
+                if (FateManager.Instance()->GetFateById(nextFate!.FateId) == null) // if the fate disappears on your way there
+                {
+                    State = DateWithDestinyState.Ready;
+                    return;
+                }
+
                 unsafe { AgentMap.Instance()->SetFlagMapMarker(Svc.ClientState.TerritoryType, Svc.ClientState.MapId, FateManager.Instance()->GetFateById(nextFate!.FateId)->Location); }
                 if (!Svc.Condition[ConditionFlag.InFlight])
                 {
@@ -376,7 +371,6 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                 }
                 return;
             case DateWithDestinyState.ChangingInstances:
-                Svc.Log.Info("_successiveInstanceChanges: " + SuccessiveInstanceChanges);
                 if (ChangeInstances())
                     State = DateWithDestinyState.Ready;
                 return;
@@ -480,7 +474,6 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 
     private unsafe void MoveToNextFate(ushort nextFateID)
     {
-
         if (P.Navmesh.IsReady() &&
             !Svc.Condition[ConditionFlag.InCombat] && !Player.Occupied)
         {
@@ -560,12 +553,12 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     private unsafe bool ChangeInstances()
     {
         var numberOfInstances = P.Lifestream.GetNumberOfInstances();
-        if (SuccessiveInstanceChanges >= numberOfInstances - 1)
+        if (_successiveInstanceChanges >= numberOfInstances - 1)
         {
             P.TaskManager.Enqueue(() => EzThrottler.Throttle("SuccessiveInstanceChanges", 10000));
             P.TaskManager.Enqueue(() => EzThrottler.Check("SuccessiveInstanceChanges"));
             Svc.Log.Info("Cycled through all instances. Waiting 10s.");
-            SuccessiveInstanceChanges = 0;
+            _successiveInstanceChanges = 0;
             return false;
         }
 
@@ -613,7 +606,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         P.TaskManager.Enqueue(() => Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51]);
         P.TaskManager.Enqueue(() => !(Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51]));
 
-        SuccessiveInstanceChanges += 1;
+        _successiveInstanceChanges += 1;
 
         return true;
     }
