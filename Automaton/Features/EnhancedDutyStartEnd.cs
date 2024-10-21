@@ -2,6 +2,8 @@
 using Dalamud.Interface.Components;
 using ECommons;
 using ECommons.ImGuiMethods;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using ImGuiNET;
 
 namespace Automaton.Features;
@@ -18,6 +20,7 @@ public class EnhancedDutyStartEndConfiguration
     public string EndMsg = string.Empty;
     public bool AutoLeaveOnEnd;
     public int TimeToWait;
+    public bool WaitForLoot;
 }
 
 [Tweak]
@@ -78,7 +81,10 @@ public class EnhancedDutyStartEnd : Tweak<EnhancedDutyStartEndConfiguration>
 
         ImGui.Checkbox("Auto Leave##End", ref Config.AutoLeaveOnEnd);
         if (Config.AutoLeaveOnEnd)
+        {
             ImGui.SliderInt("Leave after (s)", ref Config.TimeToWait, 0, 100);
+            ImGui.Checkbox("Wait for loot", ref Config.WaitForLoot);
+        }
     }
 
     private void OnDutyStart(object? sender, ushort e)
@@ -98,7 +104,7 @@ public class EnhancedDutyStartEnd : Tweak<EnhancedDutyStartEndConfiguration>
     }
 
     private static uint _territoryID;
-    private void OnDutyComplete(object? sender, ushort e)
+    private unsafe void OnDutyComplete(object? sender, ushort e)
     {
         _territoryID = Player.Territory;
         if (!Config.EndMsg.IsNullOrEmpty())
@@ -111,8 +117,11 @@ public class EnhancedDutyStartEnd : Tweak<EnhancedDutyStartEndConfiguration>
 
         if (Config.AutoLeaveOnEnd)
         {
-            TaskManager.EnqueueDelay(Config.TimeToWait.Ms());
-            TaskManager.Enqueue(() => P.Memory.AbandonDuty(false));
+            if (!Config.WaitForLoot || !CheckUnawaredLoot())
+            {
+                TaskManager.EnqueueDelay(Config.TimeToWait.Ms());
+                TaskManager.Enqueue(() => P.Memory.AbandonDuty(false));
+            }
         }
     }
 
@@ -121,5 +130,25 @@ public class EnhancedDutyStartEnd : Tweak<EnhancedDutyStartEndConfiguration>
         // cancel queue if we changed zones via other means to prevent autoleave from triggering in the next duty
         if (id != _territoryID && TaskManager.Tasks.Count > 0)
             TaskManager.Abort();
+    }
+
+    private static unsafe bool CheckUnawaredLoot()
+    {
+        var unawardedLootCount = 0;
+        var span = Loot.Instance()->Items;
+        for (var i = 0; i < span.Length; i++)
+        {
+            var loot = span[i];
+            if (loot.ItemId >= 1000000) loot.ItemId -= 1000000;
+            if (loot.ChestObjectId is 0 or 0xE0000000) continue;
+            if (loot.RollResult != RollResult.UnAwarded) continue;
+            if (loot.RollState is RollState.Rolled or RollState.Unavailable or RollState.Unknown) continue;
+            if (loot.ItemId == 0) continue;
+
+            unawardedLootCount++;
+            return true;
+        }
+
+        return unawardedLootCount > 0;
     }
 }
