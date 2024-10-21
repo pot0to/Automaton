@@ -24,7 +24,7 @@ using static ECommons.GameFunctions.ObjectFunctions;
 
 namespace Automaton.Features;
 
-public class DateWithDestinyConfiguration : TweakConfigs
+public class DateWithDestinyConfiguration
 {
     public HashSet<uint> blacklist = [];
     public HashSet<uint> whitelist = [];
@@ -55,8 +55,6 @@ public class DateWithDestinyConfiguration : TweakConfigs
     [BoolConfig] public bool ShowFateBonusIndicator;
 
     [BoolConfig] public bool ShouldExchangeBicolorGemstoneVouchers = true;
-    public uint BicolorGemstoneVoucherType = 0;
-    public uint BicolorGemstoneVoucherVendor = 0;
 }
 
 public enum DateWithDestinyState
@@ -188,6 +186,23 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         ImGui.Unindent();
         ImGui.Checkbox("Prioritize fates that have progress already (up to configured limit)", ref Config.PrioritizeStartedFates);
         ImGui.Checkbox("Always close to melee range of target", ref Config.StayInMeleeRange);
+
+        ImGui.Checkbox("Exchange Bicolor Gemstone Vouchers", ref Config.ShouldExchangeBicolorGemstoneVouchers);
+        if (Config.ShouldExchangeBicolorGemstoneVouchers)
+        {
+            ImGui.Indent();
+            ImGui.BeginMenu("Voucher Type", true);
+            if (ImGui.MenuItem("Bicolor Gemstone Voucher"))
+                BicolorExchange;
+            ImGui.MenuItem("Turali Bicolor Gemstone Voucher");
+            ImGui.EndMenu();
+
+            ImGui.BeginMenu("Vendor Location", true);
+            ImGui.MenuItem("Old Sharlayan", );
+            ImGui.MenuItem("Turali Bicolor Gemstone Voucher");
+            ImGui.EndMenu();
+        }
+
         ImGui.Checkbox("Full Auto Mode", ref Config.FullAuto);
         if (ImGui.IsItemHovered()) ImGui.SetTooltip($"All the below options will be treated as true if this is enabled.");
         ImGui.Indent();
@@ -239,8 +254,22 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
     [CommandHandler("/dwd", "Opens the FATE tracker")]
     private void OnCommand(string command, string arguments) => Utils.GetWindow<FateTrackerUI>()!.IsOpen ^= true;
 
-    private int SuccessiveInstanceChanges = 0;
+    private int _successiveInstanceChanges = 0;
     private readonly int _distanceToTargetAetheryte = 50; // object.IsTargetable has a larger range than actually clickable
+    public BicolorGemstoneVoucherType _bicolorGemstoneVoucherType = 0;
+    public BicolorGemstoneVoucherVendor _bicolorGemstoneVoucherVendor = 0;
+    public enum BicolorGemstoneVoucherType
+    {
+        BicolorGemstoneVoucher = 35833,
+        TuraliBicolorGemstoneVoucher = 43961,
+    }
+    public enum BicolorGemstoneVoucherVendor
+    {
+        Gadfrid = 1037055,
+        Sajareen = 1037304,
+        KajeelJa = 1048383,
+        Beryl = 1049082
+    }
 
     private unsafe void OnUpdate(IFramework framework)
     {
@@ -456,7 +485,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
                 var minion = Yokai.FirstOrDefault(x => CompanionUnlocked(x.Minion) && GetItemCount(x.Medal) < 10 && GetItemCount(x.Weapon) < 1).Minion;
                 if (Config.SwapMinions && minion != default)
                 {
-                    ECommons.Automation.Chat.Instance.SendMessage($"/minion {GetRow<Companion>(minion)?.Singular}");
+                    Chat.Instance.SendMessage($"/minion {GetRow<Companion>(minion)?.Singular}");
                     return;
                 }
             }
@@ -525,7 +554,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         var gysahlGreensCount = GetItemCount(4868);
         if (gysahlGreensCount > 0)
         {
-            P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.Item, 4650, 65535), "Using Gyasahl Greens");
+            P.TaskManager.Enqueue(() => ExecuteActionSafe(ActionType.Item, 4868, 65535), "Using Gyasahl Greens");
             P.TaskManager.Enqueue(() => UIState.Instance()->Buddy.CompanionInfo.TimeLeft > 0);
             return;
         }
@@ -611,7 +640,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         return true;
     }
 
-    private unsafe void ExecuteActionSafe(ActionType type, uint id, uint extraParam = 0) => action.Exec(() => ActionManager.Instance()->UseAction(type, id, extraParam));
+    private unsafe void ExecuteActionSafe(ActionType type, uint id, uint extraParam = 0) => action.Exec(() => ActionManager.Instance()->UseAction(type, id, extraParam: extraParam));
 
     private void ExecuteMount()
     {
@@ -700,7 +729,7 @@ internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
         if (value != 0 && PlayerState.Instance()->IsLevelSynced == 0)
         {
             if (Player.Level > CurrentFate->MaxLevel)
-                ECommons.Automation.Chat.Instance.SendMessage("/lsync");
+                Chat.Instance.SendMessage("/lsync");
         }
     }
 }
