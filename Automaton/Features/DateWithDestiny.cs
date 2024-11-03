@@ -75,7 +75,7 @@ public enum DateWithDestinyState
 internal class DateWithDestiny : Tweak<DateWithDestinyConfiguration>
 {
     public override string Name => "Date with Destiny";
-    public override string Description => $"It's a FATE bot. Requires whatever you want for combat. Open the menu with /vfate.";
+    public override string Description => $"Fate tracker and mover. Doesn't handle combat. Open the menu with /vfate.";
 
     public bool active = false;
     private static Vector3 TargetPos;

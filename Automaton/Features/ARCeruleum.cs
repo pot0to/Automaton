@@ -73,7 +73,7 @@ internal class ARCeruleum : Tweak
 
     private unsafe void CheckCharacter()
     {
-        if (!P.UsingARPostProcess && InventoryManager.Instance()->GetInventoryItemCount(CeruleumTankId) <= 200 && CompanyWorkshopTerritories.Contains(Player.Territory))
+        if (!P.UsingARPostProcess && P.AutoRetainerAPI.GetOfflineCharacterData(Player.CID).EnabledSubs.Count > 0 && InventoryManager.Instance()->GetInventoryItemCount(CeruleumTankId) <= 200 && CompanyWorkshopTerritories.Contains(Player.Territory))
         {
             P.UsingARPostProcess = true;
             AutoRetainer.RequestCharacterPostprocess();

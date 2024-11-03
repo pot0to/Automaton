@@ -7,6 +7,7 @@ using ECommons;
 using ECommons.Automation.LegacyTaskManager;
 using ECommons.Configuration;
 using ECommons.SimpleGui;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using KamiToolKit;
 using System.Collections.Specialized;
 using System.Reflection;
@@ -53,6 +54,8 @@ public class Automaton : IDalamudPlugin
             }
         }
 
+        Svc.Framework.Update += EventWatcher;
+
         EzCmd.Add(Command, OnCommand, $"Opens the {Name} menu");
         EzConfigGui.Init(new HaselWindow().Draw);
         HaselWindow.SetWindowProperties();
@@ -69,6 +72,21 @@ public class Automaton : IDalamudPlugin
 
         Svc.Framework.RunOnFrameworkThread(InitializeTweaks);
         C.EnabledTweaks.CollectionChanged += OnChange;
+    }
+
+    private bool inpvp = false;
+    private void EventWatcher(IFramework framework)
+    {
+        if (Player.InPvP)
+        {
+            if (!inpvp)
+            {
+                inpvp = true;
+                Events.OnEnteredPvPInstance();
+            }
+        }
+        else
+            inpvp = false;
     }
 
     public static void OnChange(object? sender, NotifyCollectionChangedEventArgs e)
@@ -90,6 +108,7 @@ public class Automaton : IDalamudPlugin
             Svc.Log.Debug($"Disposing {tweak.InternalName}");
             TryExecute(tweak.DisposeInternal);
         }
+        Svc.Framework.Update -= EventWatcher;
         C.EnabledTweaks.CollectionChanged -= OnChange;
         AddonObserver.Dispose();
         Memory.Dispose();

@@ -1,15 +1,12 @@
-Better targeting that works in pvp
-    - ability to preview which target is next/prev
-auto hide helmet during cutscene
-autoretainer companion tweaks
-    - auto turn in when inventory is at a certain level
-    - auto buy tanks at a certain level
+relay helper: minion support, prevent double relaying
 Some sort of go to npc command that incorporates itemvendorlocation/lifestream/navmesh
 /tplast command to teleport to the last linked loc
-Enhanced login/logout, ability to do commands when those are triggered
 
 date with destiny adjustments
     - zone whitelist/blacklist
     - auto zone change
     - support for the achievements
     - fate whitelist/blacklist
+
+address book: move to lifestream
+g2a/achievement tracker: move to their own plugins

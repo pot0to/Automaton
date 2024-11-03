@@ -1,5 +1,6 @@
 ﻿using Dalamud.Game.Network.Structures;
 using Dalamud.Hooking;
+using ECommons.Automation;
 using ECommons.EzHookManager;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
@@ -280,7 +281,7 @@ internal unsafe class Memory
 
     private byte ReturnDetour(AgentInterface* agent)
     {
-        if (ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 6) != 0)
+        if (ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 6) != 0 || GameMain.IsInPvPInstance())
             return ReturnHook.Original(agent);
 
         ExecuteCommand(214);

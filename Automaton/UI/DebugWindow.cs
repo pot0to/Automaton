@@ -1,13 +1,8 @@
-using Dalamud;
 using Dalamud.Interface.Windowing;
-using ECommons;
 using FFXIVClientStructs.Attributes;
-using FFXIVClientStructs.FFXIV.Application.Network.WorkDefinitions;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
-using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -26,18 +21,25 @@ internal class DebugWindow : Window
 
     public static void Dispose() { }
 
-    public unsafe override void Draw()
+    public override unsafe void Draw()
     {
-        for (var i = 0; i < RaptureAtkUnitManager.Instance()->FocusedUnitsList.Count; i++)
+        if (!Player.Available) return;
+        for (var i = 0; i < RaptureAtkUnitManager.Instance()->AllLoadedUnitsList.Count; i++)
         {
-            var atk = RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[i].Value;
-            ImGui.TextUnformatted($"{i} {atk == null} {(atk != null ? atk->NameString : "")}");
+            var atk = RaptureAtkUnitManager.Instance()->AllLoadedUnitsList.Entries[i].Value;
+            if (atk == null || (atk->Flags198 & 0b1100_0000) != 0 || atk->HostId != 0) continue;
+            ImGui.TextUnformatted($"special addon: {atk->NameString}");
         }
-        ImGui.TextUnformatted($"{RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[^1].Value == null}");
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("LookingForGroup", out var lfg))
-        {
-            ImGui.TextUnformatted($"{RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[^1].Value == lfg}");
-        }
+        //for (var i = 0; i < RaptureAtkUnitManager.Instance()->FocusedUnitsList.Count; i++)
+        //{
+        //    var atk = RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[i].Value;
+        //    ImGui.TextUnformatted($"{i} {atk == null} {(atk != null ? atk->NameString : "")}");
+        //}
+        //ImGui.TextUnformatted($"{RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[^1].Value == null}");
+        //if (TryGetAddonByName<AtkUnitBase>("LookingForGroup", out var lfg))
+        //{
+        //    ImGui.TextUnformatted($"{RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[^1].Value == lfg}");
+        //}
         //for (var i = 0; i < RaptureAtkUnitManager.Instance()->FocusedUnitsList.Count; i++)
         //{
         //    var atk = RaptureAtkUnitManager.Instance()->FocusedUnitsList.Entries[i].Value;

@@ -99,4 +99,22 @@ public class Inventory
         }
         return items;
     }
+
+    public static unsafe uint GetEmptySlots(IEnumerable<InventoryType> inventories = null)
+    {
+        if (inventories == null)
+            return InventoryManager.Instance()->GetEmptySlotsInBag();
+        else
+        {
+            uint count = 0;
+            foreach (var inv in inventories)
+            {
+                var cont = InventoryManager.Instance()->GetInventoryContainer(inv);
+                for (var i = 0; i < cont->Size; ++i)
+                    if (cont->GetInventorySlot(i)->ItemId == 0)
+                        count++;
+            }
+            return count;
+        }
+    }
 }
