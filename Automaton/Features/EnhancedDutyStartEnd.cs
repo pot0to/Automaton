@@ -82,8 +82,9 @@ public class EnhancedDutyStartEnd : Tweak<EnhancedDutyStartEndConfiguration>
         ImGui.Checkbox("Auto Leave##End", ref Config.AutoLeaveOnEnd);
         if (Config.AutoLeaveOnEnd)
         {
-            ImGui.SliderInt("Leave after (s)", ref Config.TimeToWait, 0, 100);
+            ImGui.Indent();
             ImGui.Checkbox("Wait for loot", ref Config.WaitForLoot);
+            ImGui.SliderInt("Leave after (s)", ref Config.TimeToWait, 0, 100);
         }
     }
 
@@ -136,17 +137,15 @@ public class EnhancedDutyStartEnd : Tweak<EnhancedDutyStartEndConfiguration>
     {
         var unawardedLootCount = 0;
         var span = Loot.Instance()->Items;
+
         for (var i = 0; i < span.Length; i++)
         {
             var loot = span[i];
-            if (loot.ItemId >= 1000000) loot.ItemId -= 1000000;
-            if (loot.ChestObjectId is 0 or 0xE0000000) continue;
-            if (loot.RollResult != RollResult.UnAwarded) continue;
-            if (loot.RollState is RollState.Rolled or RollState.Unavailable or RollState.Unknown) continue;
-            if (loot.ItemId == 0) continue;
-
-            unawardedLootCount++;
-            return true;
+            Svc.Log.Info("Chest index: " + loot.ChestItemIndex);
+            if (loot.RollResult == RollResult.UnAwarded)
+            {
+                unawardedLootCount++;
+            }
         }
 
         return unawardedLootCount > 0;
